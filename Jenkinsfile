@@ -16,13 +16,13 @@ pipeline {
         
         stage('Build with Maven') {
             steps {
-                sh 'mvn clean compile'
+                bat 'mvn clean compile'
             }
         }
         
         stage('Run Unit Tests') {
             steps {
-                sh 'mvn test'
+                bat 'mvn test'
             }
             post {
                 success {
@@ -37,15 +37,15 @@ pipeline {
         
         stage('Package Application') {
             steps {
-                sh 'mvn package'
+                bat 'mvn package'
             }
         }
         
         stage('Build Docker Image') {
             steps {
                 script {
-                    docker.build("${DOCKER_IMAGE}:${DOCKER_TAG}")
-                    docker.build("${DOCKER_IMAGE}:latest")
+                    bat "docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} ."
+                    bat "docker tag ${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_IMAGE}:latest"
                 }
             }
         }
@@ -53,9 +53,14 @@ pipeline {
         stage('Push to Docker Hub') {
             steps {
                 script {
-                    docker.withRegistry('', 'docker-hub-credentials') {
-                        docker.image("${DOCKER_IMAGE}:${DOCKER_TAG}").push()
-                        docker.image("${DOCKER_IMAGE}:latest").push()
+                    withCredentials([usernamePassword(
+                        credentialsId: 'docker-hub-credentials',
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
+                    )]) {
+                        bat 'echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin'
+                        bat "docker push ${DOCKER_IMAGE}:${DOCKER_TAG}"
+                        bat "docker push ${DOCKER_IMAGE}:latest"
                     }
                 }
             }
@@ -63,9 +68,9 @@ pipeline {
         
         stage('Deploy Container') {
             steps {
-                sh '''
-                    docker stop fibonacci-container || true
-                    docker rm fibonacci-container || true
+                bat '''
+                    docker stop fibonacci-container 2>nul || ver>nul
+                    docker rm fibonacci-container 2>nul || ver>nul
                     docker run -d -p 8081:8080 --name fibonacci-container abiola101/fibonacci-app:latest
                 '''
             }
